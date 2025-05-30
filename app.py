@@ -8,7 +8,8 @@ import requests  # For fetching URL content
 
 # --- Constants for context management ---
 MAX_TOOL_OUTPUT_CHARS = 20000  # Max characters for a tool's output before truncation
-MAX_HISTORY_MESSAGES = 10      # Max number of recent messages to keep in history for LLM
+# Max number of recent messages to keep in history for LLM
+MAX_HISTORY_MESSAGES = 10
 
 # --- Tool Definition ---
 
@@ -126,14 +127,16 @@ try:
 
     llm = ChatOpenAI(
         # Example OpenRouter model string for Claude 3 Sonnet
-        model_name="anthropic/claude-3-sonnet-20240229", # Corrected model name based on common OpenRouter IDs
+        # Corrected model name based on common OpenRouter IDs
+        model_name="anthropic/claude-3-7-sonnet",
         openai_api_key=openrouter_api_key,
         openai_api_base="https://openrouter.ai/api/v1",
         # default_headers=default_headers # Uncomment to add referral headers
     )
     llm_with_tools = llm.bind_tools(defined_tools)
     LLM_INITIALIZED = True
-    print(f"ChatOpenAI (via OpenRouter with {llm.model_name}) initialized successfully and tools are bound.")
+    print(
+        f"ChatOpenAI (via OpenRouter with {llm.model_name}) initialized successfully and tools are bound.")
 except ImportError:
     LLM_ERROR_MESSAGE = "Error: langchain-openai package not found. Please install it (`pip install langchain-openai`) to use OpenRouter."
     print(LLM_ERROR_MESSAGE)
@@ -186,15 +189,17 @@ def chatbot_node(state: GraphState) -> GraphState:
         return state
 
     current_messages = state['messages']
-    
+
     # Prune history: Keep only the last MAX_HISTORY_MESSAGES
     if len(current_messages) > MAX_HISTORY_MESSAGES:
         final_messages_to_send = current_messages[-MAX_HISTORY_MESSAGES:]
-        state['steps'].append(f"History pruning: Kept the last {MAX_HISTORY_MESSAGES} messages out of {len(current_messages)}.")
+        state['steps'].append(
+            f"History pruning: Kept the last {MAX_HISTORY_MESSAGES} messages out of {len(current_messages)}.")
     else:
         final_messages_to_send = current_messages
-    
-    state['steps'].append(f"Sending {len(final_messages_to_send)} messages to LLM.")
+
+    state['steps'].append(
+        f"Sending {len(final_messages_to_send)} messages to LLM.")
 
     try:
         # The LLM is already bound with tools
@@ -251,16 +256,18 @@ def tool_node(state: GraphState) -> GraphState:
             try:
                 # The @tool decorator and .invoke handle argument passing.
                 result_content = str(selected_tool.invoke(tool_args))
-                
+
                 # Truncate tool output if it's too long
                 if len(result_content) > MAX_TOOL_OUTPUT_CHARS:
                     truncated_result = result_content[:MAX_TOOL_OUTPUT_CHARS] + \
-                                       f"... [Tool output truncated to {MAX_TOOL_OUTPUT_CHARS} characters]"
-                    state['steps'].append(f"Tool {tool_name} output truncated from {len(result_content)} to {len(truncated_result)} chars.")
+                        f"... [Tool output truncated to {MAX_TOOL_OUTPUT_CHARS} characters]"
+                    state['steps'].append(
+                        f"Tool {tool_name} output truncated from {len(result_content)} to {len(truncated_result)} chars.")
                     result_content = truncated_result
-                
+
                 tool_call_messages.append(
-                    ToolMessage(content=result_content, tool_call_id=tool_call_id)
+                    ToolMessage(content=result_content,
+                                tool_call_id=tool_call_id)
                 )
                 # Log truncated result for brevity in console, actual result_content is used in ToolMessage
                 state['steps'].append(
