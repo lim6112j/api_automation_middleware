@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, END
 import gradio as gr
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
+import os # Added for file operations, though not strictly necessary for the tool itself
 
 # --- Tool Definition ---
 @tool
@@ -18,7 +19,38 @@ def magic_number_tool(input_value: int) -> str:
         return "Error: Input value must be an integer."
     return f"The magic number for {input_value} is {input_value * 7}."
 
-defined_tools = [magic_number_tool]
+@tool
+def create_or_edit_file_tool(filename: str, content: str) -> str:
+    """
+    Use this tool to create a new file or overwrite an existing file with the given content.
+    Provide the filename (e.g., 'my_file.txt', 'output/data.json') and the full content for the file.
+    Be cautious with file paths; by default, files will be created in the current working directory.
+    Example: To create a file named 'example.txt' with 'Hello, World!' as content,
+    call with filename='example.txt' and content='Hello, World!'.
+    """
+    print(f"--- Tool: create_or_edit_file_tool called with filename: {filename} ---")
+    # SECURITY WARNING: This tool writes to the filesystem.
+    # In a real application, ensure proper sandboxing and path validation.
+    print(f"WARNING: Attempting to write to filesystem: {os.path.abspath(filename)}")
+    try:
+        # Ensure directory exists if a path is specified (simple case for one level)
+        directory = os.path.dirname(filename)
+        if directory and not os.path.exists(directory):
+            try:
+                os.makedirs(directory, exist_ok=True)
+                print(f"Created directory: {directory}")
+            except Exception as e:
+                return f"Error creating directory for file {filename}: {e}"
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"Successfully created or edited file: {filename}"
+    except IOError as e:
+        return f"Error creating or editing file {filename}: {e}"
+    except Exception as e: # Catch any other unexpected errors
+        return f"An unexpected error occurred while handling file {filename}: {e}"
+
+defined_tools = [magic_number_tool, create_or_edit_file_tool] # Added the new tool
 
 # --- LLM Initialization ---
 llm = None
@@ -109,10 +141,6 @@ def tool_node(state: GraphState) -> GraphState:
     if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
         state['steps'].append("No tool calls found in the last AIMessage or last message is not AIMessage.")
         # This path should ideally not be hit if routing is correct.
-        # If it is, it means the router decided to come here without valid tool_calls.
-        # We can add a dummy ToolMessage or just pass through.
-        # For robustness, let's ensure messages list is not left in an unrecoverable state.
-        # However, the router should prevent this.
         return state
 
     tool_call_messages = []
@@ -132,7 +160,7 @@ def tool_node(state: GraphState) -> GraphState:
         if selected_tool:
             try:
                 # The @tool decorator and .invoke handle argument passing.
-                # tool_args is a dict, e.g., {'input_value': 5}
+                # tool_args is a dict, e.g., {'input_value': 5} or {'filename': 'f.txt', 'content': 'c'}
                 result = selected_tool.invoke(tool_args)
                 tool_call_messages.append(
                     ToolMessage(content=str(result), tool_call_id=tool_call_id)
@@ -173,8 +201,6 @@ def route_messages(state: GraphState) -> str:
             state['steps'].append("Router: AIMessage has no tool calls. Routing to END.")
             return END
     
-    # Fallback or unexpected state, typically should end if not AIMessage with tool calls
-    # This could happen if a ToolMessage was the last, but tool_node always goes to chatbot.
     state['steps'].append("Router: Last message not AIMessage or no specific route. Routing to END (fallback).")
     return END
 
@@ -214,15 +240,11 @@ def run_langgraph_app(user_input: str) -> str:
     if not user_input:
         return "Please enter some text."
 
-    # Initial state for the graph invocation
     initial_graph_state: GraphState = {
         "messages": [HumanMessage(content=user_input)],
         "steps": [] 
     }
     
-    # Invoke the LangGraph runnable
-    # Add a config to enable streaming logs for debugging if needed
-    # final_state = app_runnable.invoke(initial_graph_state, {"recursion_limit": 10})
     final_state = app_runnable.invoke(initial_graph_state)
     
     # For debugging, print the steps:
@@ -231,7 +253,6 @@ def run_langgraph_app(user_input: str) -> str:
     #     print(step)
     # print("--- End Graph Execution Steps ---\n")
 
-    # Extract the last AI message content as the response
     if final_state['messages']:
         final_ai_message = None
         for msg in reversed(final_state['messages']):
@@ -241,20 +262,23 @@ def run_langgraph_app(user_input: str) -> str:
         
         if final_ai_message:
             return final_ai_message.content
-        else: # Should not happen if graph ends properly
+        else: 
             return "Chatbot did not provide a final AI response."
 
     return "Could not get a response from the chatbot. The message list was empty."
 
 # 6. Create and Launch the Gradio Interface
 if __name__ == "__main__":
-    gradio_description = "Enter some text. The chatbot may use tools (like a magic number calculator) to help answer."
+    gradio_description = (
+        "Enter some text. The chatbot may use tools (like a magic number calculator or file creator) to help answer.\n"
+        "Try: 'what is the magic number for 10?' or 'create a file named hello.txt with the content Hello world from the chatbot!'"
+    )
     if not LLM_INITIALIZED:
         gradio_description += f"\n\n**Warning: {LLM_ERROR_MESSAGE} The chatbot functionality will be impaired or non-functional.**"
     
     iface = gr.Interface(
         fn=run_langgraph_app,
-        inputs=gr.Textbox(lines=1, placeholder="Ask a question or try 'what is the magic number for 5?'..."), # Changed lines=3 to lines=1
+        inputs=gr.Textbox(lines=1, placeholder="Ask a question, try 'magic number for 5?', or 'create file test.txt with content hello'"),
         outputs=gr.Textbox(label="Chatbot Response", lines=5),
         title="LangGraph Chatbot with Tools",
         description=gradio_description
