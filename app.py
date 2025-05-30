@@ -86,7 +86,7 @@ def get_swagger_or_openapi_content_tool(url: str) -> str:
     except Exception as e:
         return f"An unexpected error occurred while fetching content from {url}: {e}"
 
-defined_tools = [magic_number_tool, create_or_edit_file_tool, get_swagger_or_openapi_content_tool] # Added the new tool
+defined_tools = [magic_number_tool, create_or_edit_file_tool, get_swagger_or_openapi_content_tool]
 
 # --- LLM Initialization ---
 llm = None
@@ -95,18 +95,18 @@ LLM_INITIALIZED = False
 LLM_ERROR_MESSAGE = ""
 
 try:
-    from langchain_openai import ChatOpenAI
-    # IMPORTANT: Ensure you have OPENAI_API_KEY set in your environment
-    # and the langchain-openai package is installed (pip install langchain-openai)
-    llm = ChatOpenAI(model="gpt-3.5-turbo")
+    from langchain_anthropic import ChatAnthropic # Changed from langchain_openai to langchain_anthropic
+    # IMPORTANT: Ensure you have ANTHROPIC_API_KEY set in your environment
+    # and the langchain-anthropic package is installed (pip install langchain-anthropic)
+    llm = ChatAnthropic(model="claude-3-sonnet-20240229") # Changed model
     llm_with_tools = llm.bind_tools(defined_tools)
     LLM_INITIALIZED = True
-    print("ChatOpenAI initialized successfully and tools are bound.")
+    print("ChatAnthropic (Claude 3 Sonnet) initialized successfully and tools are bound.")
 except ImportError:
-    LLM_ERROR_MESSAGE = "Error: langchain-openai package not found. Please install it (`pip install langchain-openai`) to use the chatbot."
+    LLM_ERROR_MESSAGE = "Error: langchain-anthropic package not found. Please install it (`pip install langchain-anthropic`) to use the chatbot."
     print(LLM_ERROR_MESSAGE)
 except Exception as e:
-    LLM_ERROR_MESSAGE = f"Error initializing ChatOpenAI: {e}. Please ensure OPENAI_API_KEY is set correctly."
+    LLM_ERROR_MESSAGE = f"Error initializing ChatAnthropic: {e}. Please ensure ANTHROPIC_API_KEY is set correctly."
     print(LLM_ERROR_MESSAGE)
 
 
@@ -305,7 +305,7 @@ def run_langgraph_app(user_input: str) -> str:
 # 6. Create and Launch the Gradio Interface
 if __name__ == "__main__":
     gradio_description = (
-        "Enter some text. The chatbot may use tools to help answer.\n"
+        "Enter some text. The chatbot (powered by Claude 3 Sonnet) may use tools to help answer.\n"
         "Tools: magic number calculator, file creator/editor, Swagger/OpenAPI URL content retriever.\n"
         "Try: 'what is the magic number for 10?'\n"
         "Try: 'create a file named hello.txt with the content Hello world from the chatbot!'\n"
@@ -318,7 +318,7 @@ if __name__ == "__main__":
         fn=run_langgraph_app,
         inputs=gr.Textbox(lines=1, placeholder="Ask a question or try a tool command... (e.g., 'fetch swagger from <URL>')"),
         outputs=gr.Textbox(label="Chatbot Response", lines=10), # Increased lines for potentially longer outputs
-        title="LangGraph Chatbot with Advanced Tools",
+        title="LangGraph Chatbot with Advanced Tools (Claude 3 Sonnet)",
         description=gradio_description
     )
     
