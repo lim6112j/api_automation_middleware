@@ -3,7 +3,8 @@ from langgraph.graph import StateGraph, END
 import gradio as gr
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
-import os # Added for file operations, though not strictly necessary for the tool itself
+import os
+import requests # For fetching URL content
 
 # --- Tool Definition ---
 @tool
@@ -50,7 +51,42 @@ def create_or_edit_file_tool(filename: str, content: str) -> str:
     except Exception as e: # Catch any other unexpected errors
         return f"An unexpected error occurred while handling file {filename}: {e}"
 
-defined_tools = [magic_number_tool, create_or_edit_file_tool] # Added the new tool
+@tool
+def get_swagger_or_openapi_content_tool(url: str) -> str:
+    """
+    Use this tool to retrieve the content of a Swagger (OpenAPI) specification from a given URL.
+    Provide the full URL to the Swagger/OpenAPI JSON or YAML file.
+    Example: 'https://petstore.swagger.io/v2/swagger.json'
+    The tool will return the text content of the specification.
+    Ensure the URL is publicly accessible.
+    """
+    print(f"--- Tool: get_swagger_or_openapi_content_tool called with URL: {url} ---")
+    # SECURITY WARNING: This tool fetches content from external URLs.
+    # In a real application, add safeguards like URL validation, timeouts, content size limits.
+    print(f"WARNING: Attempting to fetch content from external URL: {url}")
+    # Ensure you have 'requests' installed: pip install requests
+    try:
+        headers = {'Accept': 'application/json, application/x-yaml, text/plain'}
+        response = requests.get(url, timeout=10, headers=headers) # 10-second timeout
+        response.raise_for_status() # Raises an HTTPError for bad responses (4XX or 5XX)
+        
+        # Basic check for common content types, though OpenAPI can be other text types
+        content_type = response.headers.get('content-type', '').lower()
+        if 'json' in content_type or 'yaml' in content_type or 'text' in content_type:
+            return response.text
+        else:
+            return f"Error: URL returned an unexpected content type: {content_type}. Expected JSON, YAML, or text."
+            
+    except requests.exceptions.Timeout:
+        return f"Error: Request to {url} timed out."
+    except requests.exceptions.HTTPError as e:
+        return f"Error: HTTP error fetching {url}. Status code: {e.response.status_code}. Response: {e.response.text[:200]}"
+    except requests.exceptions.RequestException as e:
+        return f"Error: Could not retrieve content from URL {url}. Details: {e}"
+    except Exception as e:
+        return f"An unexpected error occurred while fetching content from {url}: {e}"
+
+defined_tools = [magic_number_tool, create_or_edit_file_tool, get_swagger_or_openapi_content_tool] # Added the new tool
 
 # --- LLM Initialization ---
 llm = None
@@ -160,12 +196,11 @@ def tool_node(state: GraphState) -> GraphState:
         if selected_tool:
             try:
                 # The @tool decorator and .invoke handle argument passing.
-                # tool_args is a dict, e.g., {'input_value': 5} or {'filename': 'f.txt', 'content': 'c'}
                 result = selected_tool.invoke(tool_args)
                 tool_call_messages.append(
                     ToolMessage(content=str(result), tool_call_id=tool_call_id)
                 )
-                state['steps'].append(f"Tool {tool_name} executed. Result: {result}")
+                state['steps'].append(f"Tool {tool_name} executed. Result: {str(result)[:200]}...") # Log truncated result
             except Exception as e:
                 error_msg = f"Error executing tool {tool_name}: {e}"
                 state['steps'].append(error_msg)
@@ -270,17 +305,20 @@ def run_langgraph_app(user_input: str) -> str:
 # 6. Create and Launch the Gradio Interface
 if __name__ == "__main__":
     gradio_description = (
-        "Enter some text. The chatbot may use tools (like a magic number calculator or file creator) to help answer.\n"
-        "Try: 'what is the magic number for 10?' or 'create a file named hello.txt with the content Hello world from the chatbot!'"
+        "Enter some text. The chatbot may use tools to help answer.\n"
+        "Tools: magic number calculator, file creator/editor, Swagger/OpenAPI URL content retriever.\n"
+        "Try: 'what is the magic number for 10?'\n"
+        "Try: 'create a file named hello.txt with the content Hello world from the chatbot!'\n"
+        "Try: 'get the swagger content from https://petstore.swagger.io/v2/swagger.json and tell me about the available paths.'"
     )
     if not LLM_INITIALIZED:
         gradio_description += f"\n\n**Warning: {LLM_ERROR_MESSAGE} The chatbot functionality will be impaired or non-functional.**"
     
     iface = gr.Interface(
         fn=run_langgraph_app,
-        inputs=gr.Textbox(lines=1, placeholder="Ask a question, try 'magic number for 5?', or 'create file test.txt with content hello'"),
-        outputs=gr.Textbox(label="Chatbot Response", lines=5),
-        title="LangGraph Chatbot with Tools",
+        inputs=gr.Textbox(lines=1, placeholder="Ask a question or try a tool command... (e.g., 'fetch swagger from <URL>')"),
+        outputs=gr.Textbox(label="Chatbot Response", lines=10), # Increased lines for potentially longer outputs
+        title="LangGraph Chatbot with Advanced Tools",
         description=gradio_description
     )
     
