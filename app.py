@@ -4,9 +4,11 @@ import gradio as gr
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
 import os
-import requests # For fetching URL content
+import requests  # For fetching URL content
 
 # --- Tool Definition ---
+
+
 @tool
 def magic_number_tool(input_value: int) -> str:
     """
@@ -20,6 +22,7 @@ def magic_number_tool(input_value: int) -> str:
         return "Error: Input value must be an integer."
     return f"The magic number for {input_value} is {input_value * 7}."
 
+
 @tool
 def create_or_edit_file_tool(filename: str, content: str) -> str:
     """
@@ -29,10 +32,12 @@ def create_or_edit_file_tool(filename: str, content: str) -> str:
     Example: To create a file named 'example.txt' with 'Hello, World!' as content,
     call with filename='example.txt' and content='Hello, World!'.
     """
-    print(f"--- Tool: create_or_edit_file_tool called with filename: {filename} ---")
+    print(
+        f"--- Tool: create_or_edit_file_tool called with filename: {filename} ---")
     # SECURITY WARNING: This tool writes to the filesystem.
     # In a real application, ensure proper sandboxing and path validation.
-    print(f"WARNING: Attempting to write to filesystem: {os.path.abspath(filename)}")
+    print(
+        f"WARNING: Attempting to write to filesystem: {os.path.abspath(filename)}")
     try:
         # Ensure directory exists if a path is specified (simple case for one level)
         directory = os.path.dirname(filename)
@@ -48,8 +53,9 @@ def create_or_edit_file_tool(filename: str, content: str) -> str:
         return f"Successfully created or edited file: {filename}"
     except IOError as e:
         return f"Error creating or editing file {filename}: {e}"
-    except Exception as e: # Catch any other unexpected errors
+    except Exception as e:  # Catch any other unexpected errors
         return f"An unexpected error occurred while handling file {filename}: {e}"
+
 
 @tool
 def get_swagger_or_openapi_content_tool(url: str) -> str:
@@ -60,23 +66,25 @@ def get_swagger_or_openapi_content_tool(url: str) -> str:
     The tool will return the text content of the specification.
     Ensure the URL is publicly accessible.
     """
-    print(f"--- Tool: get_swagger_or_openapi_content_tool called with URL: {url} ---")
+    print(
+        f"--- Tool: get_swagger_or_openapi_content_tool called with URL: {url} ---")
     # SECURITY WARNING: This tool fetches content from external URLs.
     # In a real application, add safeguards like URL validation, timeouts, content size limits.
     print(f"WARNING: Attempting to fetch content from external URL: {url}")
     # Ensure you have 'requests' installed: pip install requests
     try:
         headers = {'Accept': 'application/json, application/x-yaml, text/plain'}
-        response = requests.get(url, timeout=10, headers=headers) # 10-second timeout
-        response.raise_for_status() # Raises an HTTPError for bad responses (4XX or 5XX)
-        
+        response = requests.get(
+            url, timeout=10, headers=headers)  # 10-second timeout
+        response.raise_for_status()  # Raises an HTTPError for bad responses (4XX or 5XX)
+
         # Basic check for common content types, though OpenAPI can be other text types
         content_type = response.headers.get('content-type', '').lower()
         if 'json' in content_type or 'yaml' in content_type or 'text' in content_type:
             return response.text
         else:
             return f"Error: URL returned an unexpected content type: {content_type}. Expected JSON, YAML, or text."
-            
+
     except requests.exceptions.Timeout:
         return f"Error: Request to {url} timed out."
     except requests.exceptions.HTTPError as e:
@@ -86,7 +94,9 @@ def get_swagger_or_openapi_content_tool(url: str) -> str:
     except Exception as e:
         return f"An unexpected error occurred while fetching content from {url}: {e}"
 
-defined_tools = [magic_number_tool, create_or_edit_file_tool, get_swagger_or_openapi_content_tool]
+
+defined_tools = [magic_number_tool, create_or_edit_file_tool,
+                 get_swagger_or_openapi_content_tool]
 
 # --- LLM Initialization ---
 llm = None
@@ -95,8 +105,9 @@ LLM_INITIALIZED = False
 LLM_ERROR_MESSAGE = ""
 
 try:
-    from langchain_openai import ChatOpenAI # Changed back to ChatOpenAI for OpenRouter
-    
+    # Changed back to ChatOpenAI for OpenRouter
+    from langchain_openai import ChatOpenAI
+
     # IMPORTANT: Ensure you have OPENROUTER_API_KEY set in your environment
     # and the langchain-openai package is installed (pip install langchain-openai)
     openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -110,7 +121,8 @@ try:
     # }
 
     llm = ChatOpenAI(
-        model_name="anthropic/claude-3-sonnet", # Example OpenRouter model string for Claude 3 Sonnet
+        # Example OpenRouter model string for Claude 3 Sonnet
+        model_name="anthropic/claude-3-7-sonnet",
         openai_api_key=openrouter_api_key,
         openai_api_base="https://openrouter.ai/api/v1",
         # default_headers=default_headers # Uncomment to add referral headers
@@ -121,7 +133,7 @@ try:
 except ImportError:
     LLM_ERROR_MESSAGE = "Error: langchain-openai package not found. Please install it (`pip install langchain-openai`) to use OpenRouter."
     print(LLM_ERROR_MESSAGE)
-except ValueError as ve: # Catch missing API key
+except ValueError as ve:  # Catch missing API key
     LLM_ERROR_MESSAGE = str(ve)
     print(LLM_ERROR_MESSAGE)
 except Exception as e:
@@ -142,15 +154,19 @@ class GraphState(TypedDict):
     steps: List[str]
 
 # 2. Define LangGraph Nodes
+
+
 def entry_node(state: GraphState) -> GraphState:
     """
     Node that handles the initial setup.
     Messages list is expected to be pre-populated with the initial HumanMessage.
     """
-    if 'steps' not in state or not state['steps']: # Initialize steps if not already
+    if 'steps' not in state or not state['steps']:  # Initialize steps if not already
         state['steps'] = []
-    state['steps'].append(f"Entry node: Initial messages received ({len(state['messages'])}).")
+    state['steps'].append(
+        f"Entry node: Initial messages received ({len(state['messages'])}).")
     return state
+
 
 def chatbot_node(state: GraphState) -> GraphState:
     """
@@ -167,24 +183,28 @@ def chatbot_node(state: GraphState) -> GraphState:
 
     current_messages = state['messages']
     state['steps'].append(f"Sending {len(current_messages)} messages to LLM.")
-    
+
     try:
         # The LLM is already bound with tools
         response_message = llm_with_tools.invoke(current_messages)
         state['messages'].append(response_message)
-        
+
         if response_message.tool_calls:
-            state['steps'].append(f"LLM responded with tool calls: {response_message.tool_calls}")
+            state['steps'].append(
+                f"LLM responded with tool calls: {response_message.tool_calls}")
         else:
-            state['steps'].append(f"LLM responded with content: '{response_message.content[:100]}...'")
-            
+            state['steps'].append(
+                f"LLM responded with content: '{response_message.content[:100]}...'")
+
     except Exception as e:
         error_message_content = f"Error invoking LLM: {e}"
         state['steps'].append(error_message_content)
         # Append an AIMessage with the error to ensure the messages list always ends with an AI response type
-        state['messages'].append(AIMessage(content=f"An error occurred: {error_message_content}"))
-    
+        state['messages'].append(
+            AIMessage(content=f"An error occurred: {error_message_content}"))
+
     return state
+
 
 def tool_node(state: GraphState) -> GraphState:
     """
@@ -192,26 +212,29 @@ def tool_node(state: GraphState) -> GraphState:
     """
     state['steps'].append("Tool node entered.")
     last_message = state['messages'][-1]
-    
+
     if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
-        state['steps'].append("No tool calls found in the last AIMessage or last message is not AIMessage.")
+        state['steps'].append(
+            "No tool calls found in the last AIMessage or last message is not AIMessage.")
         # This path should ideally not be hit if routing is correct.
         return state
 
     tool_call_messages = []
     for tool_call in last_message.tool_calls:
-        tool_name = tool_call['name'] # tool_call is a dict-like object from AIMessage
+        # tool_call is a dict-like object from AIMessage
+        tool_name = tool_call['name']
         tool_args = tool_call['args']
         tool_call_id = tool_call['id']
-        
-        state['steps'].append(f"Executing tool: {tool_name} with args: {tool_args} (Call ID: {tool_call_id})")
-        
+
+        state['steps'].append(
+            f"Executing tool: {tool_name} with args: {tool_args} (Call ID: {tool_call_id})")
+
         selected_tool = None
         for t in defined_tools:
             if t.name == tool_name:
                 selected_tool = t
                 break
-        
+
         if selected_tool:
             try:
                 # The @tool decorator and .invoke handle argument passing.
@@ -219,7 +242,9 @@ def tool_node(state: GraphState) -> GraphState:
                 tool_call_messages.append(
                     ToolMessage(content=str(result), tool_call_id=tool_call_id)
                 )
-                state['steps'].append(f"Tool {tool_name} executed. Result: {str(result)[:200]}...") # Log truncated result
+                # Log truncated result
+                state['steps'].append(
+                    f"Tool {tool_name} executed. Result: {str(result)[:200]}...")
             except Exception as e:
                 error_msg = f"Error executing tool {tool_name}: {e}"
                 state['steps'].append(error_msg)
@@ -232,12 +257,15 @@ def tool_node(state: GraphState) -> GraphState:
             tool_call_messages.append(
                 ToolMessage(content=error_msg, tool_call_id=tool_call_id)
             )
-            
+
     state['messages'].extend(tool_call_messages)
-    state['steps'].append(f"Added {len(tool_call_messages)} tool messages to state.")
+    state['steps'].append(
+        f"Added {len(tool_call_messages)} tool messages to state.")
     return state
 
 # 3. Define the Router for Conditional Edges
+
+
 def route_messages(state: GraphState) -> str:
     """
     Router function to decide the next step based on the last message.
@@ -245,18 +273,23 @@ def route_messages(state: GraphState) -> str:
     - Otherwise (AIMessage with no tool_calls), route to END.
     """
     last_message = state['messages'][-1]
-    state['steps'].append(f"Router: Last message type is {type(last_message).__name__}.")
+    state['steps'].append(
+        f"Router: Last message type is {type(last_message).__name__}.")
 
     if isinstance(last_message, AIMessage):
         if last_message.tool_calls:
-            state['steps'].append("Router: AIMessage has tool calls. Routing to tool_node.")
+            state['steps'].append(
+                "Router: AIMessage has tool calls. Routing to tool_node.")
             return "tool_node"
         else:
-            state['steps'].append("Router: AIMessage has no tool calls. Routing to END.")
+            state['steps'].append(
+                "Router: AIMessage has no tool calls. Routing to END.")
             return END
-    
-    state['steps'].append("Router: Last message not AIMessage or no specific route. Routing to END (fallback).")
+
+    state['steps'].append(
+        "Router: Last message not AIMessage or no specific route. Routing to END (fallback).")
     return END
+
 
 # 4. Build the Graph
 workflow = StateGraph(GraphState)
@@ -279,13 +312,16 @@ workflow.add_conditional_edges(
         END: END
     }
 )
-workflow.add_edge("tool", "chatbot") # After tools are run, go back to chatbot to process results
+# After tools are run, go back to chatbot to process results
+workflow.add_edge("tool", "chatbot")
 
 # Compile the graph into a runnable application
 app_runnable = workflow.compile()
 print("LangGraph workflow compiled.")
 
 # 5. Define the Gradio interaction function
+
+
 def run_langgraph_app(user_input: str) -> str:
     """
     This function will be called by Gradio.
@@ -296,11 +332,11 @@ def run_langgraph_app(user_input: str) -> str:
 
     initial_graph_state: GraphState = {
         "messages": [HumanMessage(content=user_input)],
-        "steps": [] 
+        "steps": []
     }
-    
+
     final_state = app_runnable.invoke(initial_graph_state)
-    
+
     # For debugging, print the steps:
     # print("\n--- Graph Execution Steps ---")
     # for step in final_state.get('steps', []):
@@ -313,13 +349,14 @@ def run_langgraph_app(user_input: str) -> str:
             if isinstance(msg, AIMessage):
                 final_ai_message = msg
                 break
-        
+
         if final_ai_message:
             return final_ai_message.content
-        else: 
+        else:
             return "Chatbot did not provide a final AI response."
 
     return "Could not get a response from the chatbot. The message list was empty."
+
 
 # 6. Create and Launch the Gradio Interface
 if __name__ == "__main__":
@@ -332,14 +369,15 @@ if __name__ == "__main__":
     )
     if not LLM_INITIALIZED:
         gradio_description += f"\n\n**Warning: {LLM_ERROR_MESSAGE} The chatbot functionality will be impaired or non-functional.**"
-    
+
     iface = gr.Interface(
         fn=run_langgraph_app,
-        inputs=gr.Textbox(lines=1, placeholder="Ask a question or try a tool command... (e.g., 'fetch swagger from <URL>')"),
-        outputs=gr.Textbox(label="Chatbot Response", lines=10), 
+        inputs=gr.Textbox(
+            lines=1, placeholder="Ask a question or try a tool command... (e.g., 'fetch swagger from <URL>')"),
+        outputs=gr.Textbox(label="Chatbot Response", lines=10),
         title="LangGraph Chatbot with Advanced Tools (OpenRouter - Claude 3 Sonnet)",
         description=gradio_description
     )
-    
+
     print("Launching Gradio interface...")
     iface.launch()
