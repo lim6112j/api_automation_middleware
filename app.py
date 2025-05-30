@@ -95,18 +95,37 @@ LLM_INITIALIZED = False
 LLM_ERROR_MESSAGE = ""
 
 try:
-    from langchain_anthropic import ChatAnthropic # Changed from langchain_openai to langchain_anthropic
-    # IMPORTANT: Ensure you have ANTHROPIC_API_KEY set in your environment
-    # and the langchain-anthropic package is installed (pip install langchain-anthropic)
-    llm = ChatAnthropic(model="claude-3-sonnet-20240229") # Changed model
+    from langchain_openai import ChatOpenAI # Changed back to ChatOpenAI for OpenRouter
+    
+    # IMPORTANT: Ensure you have OPENROUTER_API_KEY set in your environment
+    # and the langchain-openai package is installed (pip install langchain-openai)
+    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not openrouter_api_key:
+        raise ValueError("OPENROUTER_API_KEY environment variable not set.")
+
+    # Optional: Set referral headers for OpenRouter
+    # default_headers = {
+    #     "HTTP-Referer": os.environ.get("OPENROUTER_SITE_URL", "http://localhost:7860"), # Your site URL
+    #     "X-Title": os.environ.get("OPENROUTER_APP_NAME", "LangGraph Demo"), # Your app name
+    # }
+
+    llm = ChatOpenAI(
+        model_name="anthropic/claude-3-sonnet", # Example OpenRouter model string for Claude 3 Sonnet
+        openai_api_key=openrouter_api_key,
+        openai_api_base="https://openrouter.ai/api/v1",
+        # default_headers=default_headers # Uncomment to add referral headers
+    )
     llm_with_tools = llm.bind_tools(defined_tools)
     LLM_INITIALIZED = True
-    print("ChatAnthropic (Claude 3 Sonnet) initialized successfully and tools are bound.")
+    print("ChatOpenAI (via OpenRouter with Claude 3 Sonnet) initialized successfully and tools are bound.")
 except ImportError:
-    LLM_ERROR_MESSAGE = "Error: langchain-anthropic package not found. Please install it (`pip install langchain-anthropic`) to use the chatbot."
+    LLM_ERROR_MESSAGE = "Error: langchain-openai package not found. Please install it (`pip install langchain-openai`) to use OpenRouter."
+    print(LLM_ERROR_MESSAGE)
+except ValueError as ve: # Catch missing API key
+    LLM_ERROR_MESSAGE = str(ve)
     print(LLM_ERROR_MESSAGE)
 except Exception as e:
-    LLM_ERROR_MESSAGE = f"Error initializing ChatAnthropic: {e}. Please ensure ANTHROPIC_API_KEY is set correctly."
+    LLM_ERROR_MESSAGE = f"Error initializing ChatOpenAI via OpenRouter: {e}. Please ensure OPENROUTER_API_KEY is set correctly and the model name is valid."
     print(LLM_ERROR_MESSAGE)
 
 
@@ -305,7 +324,7 @@ def run_langgraph_app(user_input: str) -> str:
 # 6. Create and Launch the Gradio Interface
 if __name__ == "__main__":
     gradio_description = (
-        "Enter some text. The chatbot (powered by Claude 3 Sonnet) may use tools to help answer.\n"
+        "Enter some text. The chatbot (powered by OpenRouter with Claude 3 Sonnet) may use tools to help answer.\n"
         "Tools: magic number calculator, file creator/editor, Swagger/OpenAPI URL content retriever.\n"
         "Try: 'what is the magic number for 10?'\n"
         "Try: 'create a file named hello.txt with the content Hello world from the chatbot!'\n"
@@ -317,8 +336,8 @@ if __name__ == "__main__":
     iface = gr.Interface(
         fn=run_langgraph_app,
         inputs=gr.Textbox(lines=1, placeholder="Ask a question or try a tool command... (e.g., 'fetch swagger from <URL>')"),
-        outputs=gr.Textbox(label="Chatbot Response", lines=10), # Increased lines for potentially longer outputs
-        title="LangGraph Chatbot with Advanced Tools (Claude 3 Sonnet)",
+        outputs=gr.Textbox(label="Chatbot Response", lines=10), 
+        title="LangGraph Chatbot with Advanced Tools (OpenRouter - Claude 3 Sonnet)",
         description=gradio_description
     )
     
