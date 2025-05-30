@@ -254,7 +254,7 @@ if __name__ == "__main__":
     
     iface = gr.Interface(
         fn=run_langgraph_app,
-        inputs=gr.Textbox(lines=3, placeholder="Ask a question or try 'what is the magic number for 5?'..."),
+        inputs=gr.Textbox(lines=1, placeholder="Ask a question or try 'what is the magic number for 5?'..."), # Changed lines=3 to lines=1
         outputs=gr.Textbox(label="Chatbot Response", lines=5),
         title="LangGraph Chatbot with Tools",
         description=gradio_description
